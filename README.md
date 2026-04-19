@@ -1,12 +1,14 @@
 # x402 Next.js Starter
 
-Minimal Next.js template showing how to add x402 payment-gated API routes using the [Satoshi Facilitator](https://x402-facilitator.happysmoke-e4fd0a77.eastus.azurecontainerapps.io).
+Minimal Next.js template showing how to add x402 payment-gated API routes using the [Satoshi Facilitator](https://facilitator.bitcoinsapi.com).
+
+Uses the official [`@x402/next`](https://www.npmjs.com/package/@x402/next) SDK — no hand-rolled protocol code.
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env   # edit with your wallet address + facilitator URL
+cp .env.example .env   # edit with your wallet address
 npm run dev
 ```
 
@@ -19,12 +21,15 @@ npm run dev
 
 ## How it works
 
-1. Client calls `/api/premium` without payment headers
-2. Server returns **402** with `paymentRequirements` JSON (amount, network, payTo, facilitator URL)
-3. Client obtains a signed payment from a wallet (or x402-enabled fetch client)
-4. Client retries with `X-PAYMENT` header containing the signed payment
-5. Server verifies the payment with the Satoshi Facilitator's `/verify` endpoint
-6. Server serves content and settles the payment via `/settle`
+The `withX402` wrapper from `@x402/next` handles the full payment flow:
+
+1. Client calls `/api/premium` without the `X-PAYMENT` header
+2. `withX402` returns **402 Payment Required** with `PAYMENT-REQUIRED` header (x402 v2 protocol)
+3. Client signs a payment with their wallet and retries with `X-PAYMENT`
+4. `withX402` verifies the payment via the facilitator, runs your handler, then settles on-chain
+5. Client receives premium content + a `PAYMENT-RESPONSE` header with the settlement tx hash
+
+Payment is only settled if the handler returns a 2xx response — failed requests don't charge the user.
 
 ## Test with curl
 
@@ -34,9 +39,6 @@ curl http://localhost:3000/api/hello
 
 # Paid endpoint (returns 402 with payment requirements)
 curl -i http://localhost:3000/api/premium
-
-# With a valid payment header (from x402 client/wallet)
-curl -H "X-PAYMENT: <signed-payment>" http://localhost:3000/api/premium
 ```
 
 ## Paying programmatically
@@ -55,24 +57,38 @@ const data = await res.json();
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `FACILITATOR_URL` | Satoshi Facilitator | x402 facilitator endpoint |
+| `FACILITATOR_URL` | `https://facilitator.bitcoinsapi.com` | x402 facilitator endpoint |
 | `PAY_TO` | `0xe166...` | Your wallet address for receiving payments |
-| `PRICE` | `0.001` | Price in USDC (human-readable) |
+| `PRICE` | `$0.001` | Price in USD |
 | `NETWORK` | `eip155:8453` | Chain ID (Base mainnet) |
 
 ## Adding more paid routes
 
 ```typescript
-import { requirePayment, settlePayment } from "@/lib/x402";
+// app/api/your-route/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { withX402 } from "@x402/next";
+import { server, PAY_TO, PRICE, NETWORK } from "@/lib/x402";
 
-export async function GET(req: NextRequest) {
-  const { paid, response, settlementHeader } = await requirePayment(req);
-  if (!paid) return response;
-
-  await settlePayment(settlementHeader!);
+const handler = async (_: NextRequest) => {
   return NextResponse.json({ data: "your premium content" });
-}
+};
+
+export const GET = withX402(
+  handler,
+  {
+    accepts: [{ scheme: "exact", price: PRICE, network: NETWORK, payTo: PAY_TO }],
+    description: "Your paid endpoint",
+  },
+  server,
+);
 ```
+
+## Links
+
+- [x402 Protocol](https://github.com/coinbase/x402)
+- [x402 Documentation](https://x402.org)
+- [Satoshi Facilitator](https://facilitator.bitcoinsapi.com)
 
 ## License
 
