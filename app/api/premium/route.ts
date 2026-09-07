@@ -8,7 +8,7 @@ const handler = async (_: NextRequest) => {
     timestamp: new Date().toISOString(),
     data: {
       insight: "Bitcoin is the future of money.",
-      source: "Satoshi Facilitator x402 payment verified",
+      source: "x402 payment verified",
     },
   });
 };
