@@ -1,10 +1,11 @@
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import type { Network } from "@x402/core/types";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { requiredEnv } from "./required-env.mjs";
 
-const FACILITATOR_URL =
-  process.env.FACILITATOR_URL || "https://facilitator.bitcoinsapi.com";
+const FACILITATOR_URL = requiredEnv("FACILITATOR_URL");
 
-const NETWORK = process.env.NETWORK || "eip155:8453";
+const NETWORK = (process.env.NETWORK || "eip155:8453") as Network;
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: FACILITATOR_URL });
 
@@ -13,7 +14,6 @@ export const server = new x402ResourceServer(facilitatorClient).register(
   new ExactEvmScheme(),
 );
 
-export const PAY_TO =
-  process.env.PAY_TO || "0xe166267c3648b5ca4419f2c58faed8cd4df87d54";
+export const PAY_TO = requiredEnv("PAY_TO");
 export const PRICE = process.env.PRICE || "$0.001";
 export { NETWORK };

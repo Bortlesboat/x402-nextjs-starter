@@ -1,16 +1,22 @@
 # x402 Next.js Starter
 
-Minimal Next.js template showing how to add x402 payment-gated API routes using the [Satoshi Facilitator](https://facilitator.bitcoinsapi.com).
+Minimal Next.js template showing how to add x402 payment-gated API routes through your configured facilitator.
 
-Uses the official [`@x402/next`](https://www.npmjs.com/package/@x402/next) SDK — no hand-rolled protocol code.
+Uses the official [`@x402/next`](https://www.npmjs.com/package/@x402/next) SDK â€” no hand-rolled protocol code.
 
 ## Setup
 
+`FACILITATOR_URL` and `PAY_TO` are required. Set an operating x402 facilitator that supports your chosen network and your own receiving wallet. Missing, empty, or whitespace-only values stop startup with a named configuration error. Surrounding whitespace is trimmed.
+
+The previously advertised Satoshi Facilitator is paused. These templates no longer default to it or to an example recipient.
+
 ```bash
 npm install
-cp .env.example .env   # edit with your wallet address
+cp .env.example .env   # edit both FACILITATOR_URL and PAY_TO
 npm run dev
 ```
+
+Both required values must also be set before `npm run build` and `npm start`.
 
 ## API Routes
 
@@ -23,13 +29,13 @@ npm run dev
 
 The `withX402` wrapper from `@x402/next` handles the full payment flow:
 
-1. Client calls `/api/premium` without the `X-PAYMENT` header
+1. Client calls `/api/premium` without the `PAYMENT-SIGNATURE` header
 2. `withX402` returns **402 Payment Required** with `PAYMENT-REQUIRED` header (x402 v2 protocol)
-3. Client signs a payment with their wallet and retries with `X-PAYMENT`
+3. Client signs a payment with their wallet and retries with `PAYMENT-SIGNATURE`
 4. `withX402` verifies the payment via the facilitator, runs your handler, then settles on-chain
 5. Client receives premium content + a `PAYMENT-RESPONSE` header with the settlement tx hash
 
-Payment is only settled if the handler returns a 2xx response — failed requests don't charge the user.
+Payment is only settled if the handler returns a 2xx response â€” failed requests don't charge the user.
 
 ## Test with curl
 
@@ -43,22 +49,14 @@ curl -i http://localhost:3000/api/premium
 
 ## Paying programmatically
 
-Use `@x402/fetch` to auto-handle 402 responses:
-
-```typescript
-import { wrapFetch } from "@x402/fetch";
-
-const x402Fetch = wrapFetch(fetch, walletClient);
-const res = await x402Fetch("http://localhost:3000/api/premium");
-const data = await res.json();
-```
+Use the official [`@x402/fetch` client](https://github.com/coinbase/x402/tree/main/typescript/packages/http/fetch) with a registered network signer to handle payment-required responses.
 
 ## Configuration
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `FACILITATOR_URL` | `https://facilitator.bitcoinsapi.com` | x402 facilitator endpoint |
-| `PAY_TO` | `0xe166...` | Your wallet address for receiving payments |
+| `FACILITATOR_URL` | Required, no default | Operating x402 facilitator endpoint |
+| `PAY_TO` | Required, no default | Your receiving wallet address |
 | `PRICE` | `$0.001` | Price in USD |
 | `NETWORK` | `eip155:8453` | Chain ID (Base mainnet) |
 
@@ -84,11 +82,21 @@ export const GET = withX402(
 );
 ```
 
+## Tests
+
+The tests use a local facilitator fixture and a dummy recipient. They verify configuration errors, the free 200 response, and an unpaid 402 response containing the configured recipient, amount, and network. They do not sign, verify, or settle a payment.
+
+```bash
+npm test
+```
+
+The HTTP smoke test builds and starts the production app with local fixture configuration.
+
 ## Links
 
 - [x402 Protocol](https://github.com/coinbase/x402)
 - [x402 Documentation](https://x402.org)
-- [Satoshi Facilitator](https://facilitator.bitcoinsapi.com)
+- [Satoshi Facilitator source (hosted service paused)](https://github.com/Bortlesboat/x402-facilitator)
 
 ## License
 
